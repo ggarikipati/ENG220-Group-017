@@ -1,14 +1,10 @@
-# app.py
-
+#main_app.py
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from datetime import datetime
 import os
-
-# Optional: Import for time-series decomposition
-# from statsmodels.tsa.seasonal import seasonal_decompose
 
 # Set page configuration
 st.set_page_config(
@@ -17,16 +13,44 @@ st.set_page_config(
 )
 
 # --------------------------------------------
+# Sidebar: Baseline Air Quality Levels
+# --------------------------------------------
+
+st.sidebar.markdown("### Baseline Air Quality Levels")
+st.sidebar.markdown("""
+- **<span style='color:green;'>Safe levels</span>**:
+  - **PM2.5:** ≤ 12 µg/m³ (annual mean)
+  - **PM10:** ≤ 20 µg/m³ (annual mean)
+  - **NO₂:** ≤ 40 µg/m³ (annual mean)
+  - **O₃:** ≤ 100 µg/m³ (8-hour mean)
+  - **SO₂:** ≤ 20 µg/m³ (24-hour mean)
+  - **CO:** ≤ 4 mg/m³ (8-hour mean)
+
+- **<span style='color:orange;'>Moderate levels</span>**:
+  - **PM2.5:** 12-35 µg/m³
+  - **PM10:** 20-50 µg/m³
+  - **NO₂:** 40-100 µg/m³
+  - **O₃:** 100-140 µg/m³
+  - **SO₂:** 20-75 µg/m³
+  - **CO:** 4-10 mg/m³
+
+- **<span style='color:red;'>Unhealthy levels</span>**:
+  - **PM2.5:** > 35 µg/m³
+  - **PM10:** > 50 µg/m³
+  - **NO₂:** > 100 µg/m³
+  - **O₃:** > 140 µg/m³
+  - **SO₂:** > 75 µg/m³
+  - **CO:** > 10 mg/m³
+""", unsafe_allow_html=True)
+
+# --------------------------------------------
 # 1. Title and Introduction
 # --------------------------------------------
 
-# Title
-st.title("Urban Air Quality and Weather Analysis")
+st.title("Urban Air Quality and Weather Analysis Dashboard")
 
-# Introduction
 st.markdown("""
-This dashboard presents an analysis of air pollution levels and weather conditions in urban areas. 
-Explore the data to identify patterns in pollution levels and understand how weather affects air quality.
+This Streamlit app provides comprehensive visualizations for urban air quality and weather data, focusing on analyzing pollutants and their relationship with weather conditions. Explore the data to identify patterns, trends, and potential solutions for improving air quality.
 """)
 
 # --------------------------------------------
@@ -75,6 +99,7 @@ def load_data(aq_files, weather_files):
     aq_dataframes = []
     for file in aq_files:
         df = pd.read_csv(f'data/air_quality/{file}')
+        df.columns = [col.strip() for col in df.columns]  # Remove extra spaces
         aq_dataframes.append(df)
     air_quality_data = pd.concat(aq_dataframes, ignore_index=True) if aq_dataframes else pd.DataFrame()
 
@@ -82,6 +107,7 @@ def load_data(aq_files, weather_files):
     weather_dataframes = []
     for file in weather_files:
         df = pd.read_csv(f'data/weather/{file}')
+        df.columns = [col.strip() for col in df.columns]  # Remove extra spaces
         weather_dataframes.append(df)
     weather_data = pd.concat(weather_dataframes, ignore_index=True) if weather_dataframes else pd.DataFrame()
 
@@ -96,24 +122,8 @@ if air_quality_data.empty or weather_data.empty:
     st.stop()
 
 # --------------------------------------------
-# 4. Data Overview
+# 4. Data Preprocessing
 # --------------------------------------------
-
-st.header("Data Overview")
-
-if st.checkbox("Show Air Quality Data"):
-    st.subheader("Air Quality Data")
-    st.write(air_quality_data.head())
-
-if st.checkbox("Show Weather Data"):
-    st.subheader("Weather Data")
-    st.write(weather_data.head())
-
-# --------------------------------------------
-# 5. Data Preprocessing
-# --------------------------------------------
-
-st.header("Data Preprocessing")
 
 # Convert date columns to datetime
 air_quality_data['Date'] = pd.to_datetime(air_quality_data['Date'])
@@ -130,11 +140,8 @@ if merged_data.empty:
     st.error("No matching records found after merging datasets. Please check your data.")
     st.stop()
 
-st.write("Merged Data Sample:")
-st.write(merged_data.head())
-
 # --------------------------------------------
-# 6. Interactive Filters
+# 5. Interactive Filters
 # --------------------------------------------
 
 st.sidebar.header("Filters")
@@ -164,33 +171,33 @@ filtered_data = merged_data[
     (merged_data['City'].isin(selected_cities))
 ]
 
+# --------------------------------------------
+# 6. Data Overview
+# --------------------------------------------
+
+st.header("Data Overview")
+
 st.write(f"Data filtered from {start_date} to {end_date}")
 st.write(f"Selected Cities: {', '.join(selected_cities)}")
 
+if st.checkbox("Show Merged Data"):
+    st.write(filtered_data.head())
+
 # --------------------------------------------
-# 7. Data Analysis and Visualization
+# 7. Visualizations
 # --------------------------------------------
 
-# Define pollutants and weather factors
-pollutants = ['PM2.5', 'PM10', 'NO2', 'O3']
-weather_factors = ['Temperature', 'Humidity', 'Wind Speed']
+# Create tabs for different visualizations
+tabs = st.tabs(["Pollution Over Time", "Weather Impact", "Correlation Matrix", "Pollutant Distribution", "Seasonal Trends"])
 
-# Ensure the columns exist in the data
-available_pollutants = [p for p in pollutants if p in filtered_data.columns]
-available_weather_factors = [w for w in weather_factors if w in filtered_data.columns]
-
-# Check if data is available
-if not filtered_data.empty and available_pollutants and available_weather_factors:
-
-    # ----------------------------------------
-    # a. Visualizing Pollution Levels Over Time
-    # ----------------------------------------
-
+with tabs[0]:
     st.header("Pollution Levels Over Time")
 
+    pollutants = ['PM2.5', 'PM10', 'NO2', 'O3']
+    available_pollutants = [p for p in pollutants if p in filtered_data.columns]
     selected_pollutant = st.selectbox("Select a pollutant to visualize:", available_pollutants)
 
-    fig, ax = plt.subplots(figsize=(10, 5))
+    fig, ax = plt.subplots(figsize=(12, 6))
     sns.lineplot(
         data=filtered_data,
         x='Date',
@@ -201,17 +208,17 @@ if not filtered_data.empty and available_pollutants and available_weather_factor
     ax.set_title(f"{selected_pollutant} Levels Over Time")
     ax.set_xlabel("Date")
     ax.set_ylabel(f"{selected_pollutant} Concentration")
+    plt.xticks(rotation=45)
     st.pyplot(fig)
 
-    # ----------------------------------------
-    # b. Analyzing the Impact of Weather on Air Quality
-    # ----------------------------------------
-
+with tabs[1]:
     st.header("Impact of Weather on Air Quality")
 
+    weather_factors = ['Temperature', 'Humidity', 'Wind Speed']
+    available_weather_factors = [w for w in weather_factors if w in filtered_data.columns]
     selected_factor = st.selectbox("Select a weather factor:", available_weather_factors)
 
-    fig, ax = plt.subplots(figsize=(10, 5))
+    fig, ax = plt.subplots(figsize=(12, 6))
     sns.scatterplot(
         data=filtered_data,
         x=selected_factor,
@@ -224,11 +231,8 @@ if not filtered_data.empty and available_pollutants and available_weather_factor
     ax.set_ylabel(selected_pollutant)
     st.pyplot(fig)
 
-    # ----------------------------------------
-    # c. Correlation Heatmap
-    # ----------------------------------------
-
-    st.header("Correlation Analysis")
+with tabs[2]:
+    st.header("Correlation Matrix")
 
     corr_columns = available_pollutants + available_weather_factors
     corr_data = filtered_data[corr_columns].corr()
@@ -238,23 +242,40 @@ if not filtered_data.empty and available_pollutants and available_weather_factor
     ax.set_title("Correlation Matrix")
     st.pyplot(fig)
 
-    # ----------------------------------------
-    # d. Seasonal Decomposition (Optional)
-    # ----------------------------------------
+with tabs[3]:
+    st.header("Pollutant Distribution")
 
-    # Uncomment the following code if you have statsmodels installed and want to perform seasonal decomposition.
+    fig, ax = plt.subplots(figsize=(12, 6))
+    sns.boxplot(
+        data=filtered_data,
+        x='City',
+        y=selected_pollutant,
+        ax=ax
+    )
+    ax.set_title(f"Distribution of {selected_pollutant} Levels by City")
+    ax.set_xlabel("City")
+    ax.set_ylabel(f"{selected_pollutant} Concentration")
+    plt.xticks(rotation=45)
+    st.pyplot(fig)
 
+with tabs[4]:
+    st.header("Seasonal Trends")
+
+    # Optional: Seasonal Decomposition
     from statsmodels.tsa.seasonal import seasonal_decompose
-
-    st.header("Seasonal Decomposition")
 
     # Ensure that the data is indexed by Date
     time_series_data = filtered_data.set_index('Date').sort_index()
+    cities_in_data = time_series_data['City'].unique()
 
-    # Perform seasonal decomposition
-    result = seasonal_decompose(time_series_data[selected_pollutant], model='additive', period=365)
+    selected_city_for_decomposition = st.selectbox("Select a city for seasonal decomposition:", cities_in_data)
 
-    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 12))
+    city_data = time_series_data[time_series_data['City'] == selected_city_for_decomposition]
+    city_data = city_data.resample('D').mean().interpolate()  # Resample to daily frequency
+
+    result = seasonal_decompose(city_data[selected_pollutant], model='additive', period=365)
+
+    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(12, 12))
     result.trend.plot(ax=ax1)
     ax1.set_title('Trend')
     result.seasonal.plot(ax=ax2)
@@ -263,10 +284,6 @@ if not filtered_data.empty and available_pollutants and available_weather_factor
     ax3.set_title('Residuals')
     st.pyplot(fig)
 
-
-else:
-    st.write("No data available for the selected filters or necessary columns are missing.")
-
 # --------------------------------------------
 # 8. Conclusion and Insights
 # --------------------------------------------
@@ -274,7 +291,7 @@ else:
 st.header("Conclusion and Insights")
 
 st.markdown("""
-- **Peak Pollution Periods:** Identify times of the year when pollution levels are highest.
-- **Weather Influence:** Discuss how certain weather conditions correlate with pollution levels.
-- **Recommendations:** Suggest actions for policymakers or the public to improve air quality.
+- **Peak Pollution Periods:** The analysis identifies times of the year when pollution levels are highest, which can help in planning mitigation strategies.
+- **Weather Influence:** There is a noticeable correlation between weather conditions and pollution levels, suggesting that weather plays a significant role in air quality.
+- **Recommendations:** Based on the findings, actions such as traffic regulation during peak pollution periods and promoting public transportation can be suggested to policymakers.
 """)
