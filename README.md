@@ -1,48 +1,42 @@
-# ENG220-Group-17
 # Urban Air Quality and Weather Analysis Dashboard
 
-This project presents an interactive Streamlit dashboard for analyzing urban air quality and weather data. The dashboard allows users to explore patterns in pollution levels, understand how weather affects air quality, and gain insights into potential solutions for improving air quality.
+This Streamlit app provides comprehensive visualizations for urban air quality and weather data, focusing on analyzing pollutants and their relationship with weather conditions. The dashboard allows users to interactively explore the data, identify patterns, and understand how weather affects air quality.
 
 ## Table of Contents
 
 - [Introduction](#introduction)
 - [Features](#features)
-- [Datasets](#datasets)
 - [Installation](#installation)
 - [Usage](#usage)
 - [Project Structure](#project-structure)
+- [Data Sources](#data-sources)
+- [Visualizations](#visualizations)
+  - [Pollution Over Time](#pollution-over-time)
+  - [Weather Impact](#weather-impact)
+  - [Correlation Matrix](#correlation-matrix)
+  - [Pollutant Distribution](#pollutant-distribution)
+  - [Seasonal Trends](#seasonal-trends)
 - [Contributors](#contributors)
 - [License](#license)
+- [Contact Information](#contact-information)
 
 ## Introduction
 
-Air quality is a major concern in urban environments due to factors like high traffic, industrial activities, and dense populations. This project aims to analyze air pollution levels, focusing on pollutants such as PM2.5, PM10, NO₂, and O₃, and examine how weather conditions impact these levels.
+Air quality is a major concern in urban environments due to high traffic, industrial activities, and dense populations. This project aims to analyze air pollution levels, focusing on pollutants such as PM2.5, PM10, NO₂, and O₃, and examine how weather conditions impact these levels. The dashboard provides insights into pollution patterns and suggests potential solutions for improving air quality.
 
 ## Features
 
-- **Dataset Selection:** Users can select from multiple air quality and weather datasets.
-- **Interactive Filters:** Filter data by date range and city.
-- **Visualizations:**
+- **Dataset Selection**: Users can select from multiple air quality and weather datasets.
+- **Interactive Filters**: Filter data by date range and city.
+- **Baseline Levels Sidebar**: Provides reference levels for various pollutants.
+- **Visualizations**:
   - Pollution levels over time.
   - Impact of weather factors on air quality.
   - Correlation heatmaps.
-- **Data Overview:** View raw data for selected datasets.
-- **Conclusion and Insights:** Summarized findings and recommendations.
-
-## Datasets
-
-The datasets are sourced from open-access repositories and are included in the `data/` directory of this project. Users can select which datasets to analyze through the dashboard interface.
-
-### Air Quality Datasets
-
-- **Dataset 1:** Air Quality Open Data Platform (World AQI)
-- **Dataset 2:** European Environment Agency - Air Quality Database
-- **Dataset 3:** US EPA Air Quality System Data (AQS)
-
-### Weather Datasets
-
-- **Dataset 1:** NOAA Global Surface Summary of the Day (GSOD)
-- **Dataset 2:** European Climate Assessment & Dataset (ECA&D)
+  - Pollutant distribution by city.
+  - Seasonal trends analysis.
+- **Data Overview**: View raw data for selected datasets.
+- **Conclusion and Insights**: Summarized findings and recommendations.
 
 ## Installation
 
