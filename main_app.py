@@ -244,24 +244,25 @@ if not filtered_data.empty and available_pollutants and available_weather_factor
 
     # Uncomment the following code if you have statsmodels installed and want to perform seasonal decomposition.
 
-    # from statsmodels.tsa.seasonal import seasonal_decompose
+    from statsmodels.tsa.seasonal import seasonal_decompose
 
-    # st.header("Seasonal Decomposition")
+    st.header("Seasonal Decomposition")
 
-    # # Ensure that the data is indexed by Date
-    # time_series_data = filtered_data.set_index('Date').sort_index()
+    # Ensure that the data is indexed by Date
+    time_series_data = filtered_data.set_index('Date').sort_index()
 
-    # # Perform seasonal decomposition
-    # result = seasonal_decompose(time_series_data[selected_pollutant], model='additive', period=365)
+    # Perform seasonal decomposition
+    result = seasonal_decompose(time_series_data[selected_pollutant], model='additive', period=365)
 
-    # fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 12))
-    # result.trend.plot(ax=ax1)
-    # ax1.set_title('Trend')
-    # result.seasonal.plot(ax=ax2)
-    # ax2.set_title('Seasonality')
-    # result.resid.plot(ax=ax3)
-    # ax3.set_title('Residuals')
-    # st.pyplot(fig)
+    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 12))
+    result.trend.plot(ax=ax1)
+    ax1.set_title('Trend')
+    result.seasonal.plot(ax=ax2)
+    ax2.set_title('Seasonality')
+    result.resid.plot(ax=ax3)
+    ax3.set_title('Residuals')
+    st.pyplot(fig)
+
 
 else:
     st.write("No data available for the selected filters or necessary columns are missing.")
