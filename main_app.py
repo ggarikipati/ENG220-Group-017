@@ -21,7 +21,7 @@ st.markdown(
 
 # Sidebar for Dataset Selection
 st.sidebar.header("Dataset Selection")
-data_dir = "./data"  # Folder in your repository where datasets are stored
+data_dir = "https://github.com/galazmi/ENG220-Group-17/blob/main/"  # Folder in your repository where datasets are stored
 
 # Helper function to list files in a directory
 def list_files(keyword):
