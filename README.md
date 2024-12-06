@@ -1,9 +1,3 @@
-Below is a fully revised and direct `README.md` tailored for your **Group 17** project, featuring the correct team members and focusing on the Air Quality & Weather dashboard you’ve developed. Following the README is a separate video script. This version does not reference previous groups or samples.
-
----
-
-### README.md (Code Block)
-
 ```markdown
 # ENG220-Group-17 Air Quality & Weather Analysis Project
 
