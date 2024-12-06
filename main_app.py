@@ -1,196 +1,261 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
+import glob
+import plotly.express as px
 import matplotlib.pyplot as plt
 import seaborn as sns
-import os
-import requests
-from datetime import datetime
+from io import StringIO
 
-# Configure the Streamlit App
-st.set_page_config(
-    page_title="Urban Air Quality and Weather Analysis",
-    layout="wide",
-)
+############################
+# Config and Title
+############################
+st.set_page_config(page_title="Air Quality & Weather Dashboard", layout="wide")
+st.title("Air Quality & Weather Interactive Dashboard")
+st.markdown("""
+This dashboard allows you to explore air quality metrics alongside weather conditions 
+across different U.S. states, counties, and years. Filter the data to discover trends, 
+correlations, and insights.
+""")
 
-# Title and Description
-st.title("Urban Air Quality and Weather Analysis Dashboard")
-st.markdown(
-    """
-    This dashboard analyzes urban air quality and weather data from 2010 to 2023. 
-    It provides insights into pollution trends, weather impacts, and correlations. 
-    Upload datasets or use preloaded ones to explore detailed visualizations and recommendations.
-    """
-)
+############################
+# Data Loading and Cleaning
+############################
+# Adjust file paths if needed
+aqi_files = glob.glob("datasets/annual_aqi_by_county_*.csv")
+aqi_data_list = []
 
-# Directory for local datasets
-data_dir = "./datasets"
-if not os.path.exists(data_dir):
-    os.makedirs(data_dir)
+for file in aqi_files:
+    # Assuming the first row is proper header. If not, adjust skiprows or header parameters.
+    df_temp = pd.read_csv(file)
+    aqi_data_list.append(df_temp)
 
-# GitHub URLs for datasets
-github_base_url = "https://raw.githubusercontent.com/galazmi/ENG220-Group-17/main/datasets/"
-aqi_files = [f"annual_aqi_by_county_{year}.csv" for year in range(2010, 2024)]
-weather_file = "weather_data.csv"
+aqi_df = pd.concat(aqi_data_list, ignore_index=True)
 
-# Download datasets locally if not already present
-def download_file_from_github(url, local_filename):
-    if not os.path.exists(local_filename):
-        response = requests.get(url, stream=True)
-        if response.status_code == 200:
-            with open(local_filename, "wb") as f:
-                f.write(response.content)
-        else:
-            st.error(f"Failed to download {local_filename}. Please check the GitHub URL.")
-    return local_filename
+# Ensure correct datatypes
+aqi_df['Year'] = pd.to_numeric(aqi_df['Year'], errors='coerce')
+# Drop any rows without crucial info
+aqi_df.dropna(subset=['Year','State','County'], inplace=True)
 
-for aqi_file in aqi_files:
-    download_file_from_github(github_base_url + aqi_file, os.path.join(data_dir, aqi_file))
+# Load weather data
+weather_df = pd.read_csv("datasets/weather_data.csv")
+# Parse Date_Time
+weather_df['Date_Time'] = pd.to_datetime(weather_df['Date_Time'], errors='coerce')
+weather_df['Year'] = weather_df['Date_Time'].dt.year
 
-download_file_from_github(github_base_url + weather_file, os.path.join(data_dir, weather_file))
+############################
+# Sidebar Filters
+############################
+st.sidebar.header("Filters")
 
-# Helper function to list files
-def list_files(keyword):
-    return [file for file in os.listdir(data_dir) if keyword in file and file.endswith('.csv')]
+states = sorted(aqi_df['State'].dropna().unique())
+selected_state = st.sidebar.selectbox("Select a State:", options=["All"]+states)
 
-# Identify available datasets
-aqi_files = list_files("aqi")
-weather_files = list_files("weather")
-
-# Sidebar for dataset selection
-st.sidebar.header("Dataset Selection")
-selected_aqi_files = st.sidebar.multiselect("Select Air Quality Datasets", aqi_files, default=aqi_files)
-selected_weather_file = st.sidebar.selectbox("Select Weather Dataset", weather_files)
-
-# Load and preprocess datasets
-@st.cache_data
-def load_datasets(aqi_files, weather_file):
-    aqi_dataframes = [pd.read_csv(os.path.join(data_dir, file)) for file in aqi_files]
-    air_quality_data = pd.concat(aqi_dataframes, ignore_index=True)
-
-    weather_data = pd.read_csv(os.path.join(data_dir, weather_file))
-
-    air_quality_data.columns = air_quality_data.columns.str.strip()
-    weather_data.columns = weather_data.columns.str.strip()
-
-    return air_quality_data, weather_data
-
-if selected_aqi_files and selected_weather_file:
-    air_quality_data, weather_data = load_datasets(selected_aqi_files, selected_weather_file)
-
-    # Preprocess data
-    if "Year" in air_quality_data.columns:
-        air_quality_data["Year"] = air_quality_data["Year"].astype(int)
-
-    if "Date_Time" in weather_data.columns:
-        weather_data["Date_Time"] = pd.to_datetime(weather_data["Date_Time"])
-
-    # Display datasets
-    st.header("Data Overview")
-    with st.expander("Air Quality Data"):
-        st.dataframe(air_quality_data.head())
-
-    with st.expander("Weather Data"):
-        st.dataframe(weather_data.head())
-
-    # Sidebar filters
-    st.sidebar.header("Filters")
-    state_filter = st.sidebar.multiselect("Filter States", air_quality_data["State"].unique(), default=None)
-    city_filter = st.sidebar.multiselect("Filter Cities", weather_data["Location"].unique(), default=None)
-
-    if state_filter:
-        air_quality_data = air_quality_data[air_quality_data["State"].isin(state_filter)]
-    if city_filter:
-        weather_data = weather_data[weather_data["Location"].isin(city_filter)]
-
-    # Tabs for analysis and visualizations
-    tabs = st.tabs(["AQI Trends", "Weather Analysis", "Correlation Analysis", "Pollutant Distribution", "Seasonal Trends", "Insights & Recommendations"])
-
-    # AQI Trends
-    with tabs[0]:
-        st.header("AQI Trends Over the Years")
-        pollutant = st.selectbox("Select Pollutant", ["Max AQI", "PM2.5", "PM10", "NO2", "Ozone"], index=0)
-        if pollutant in air_quality_data.columns:
-            avg_aqi = air_quality_data.groupby("Year")[pollutant].mean()
-            fig, ax = plt.subplots()
-            avg_aqi.plot(kind="line", marker="o", ax=ax)
-            ax.set_title(f"Average {pollutant} Over the Years")
-            ax.set_xlabel("Year")
-            ax.set_ylabel(f"{pollutant} Levels")
-            st.pyplot(fig)
-
-    # Weather Analysis
-    with tabs[1]:
-        st.header("Impact of Weather on Air Quality")
-        if "Temperature_C" in weather_data.columns and "Wind_Speed_kmh" in weather_data.columns:
-            fig, ax = plt.subplots()
-            sns.scatterplot(
-                data=weather_data,
-                x="Temperature_C",
-                y="Wind_Speed_kmh",
-                hue="Location",
-                ax=ax
-            )
-            ax.set_title("Temperature vs Wind Speed")
-            ax.set_xlabel("Temperature (°C)")
-            ax.set_ylabel("Wind Speed (km/h)")
-            st.pyplot(fig)
-
-    # Correlation Analysis
-    with tabs[2]:
-        st.header("Correlation Between Weather and Air Quality")
-        selected_corr_columns = ["Max AQI", "PM2.5", "PM10", "Temperature_C", "Humidity_pct", "Wind_Speed_kmh"]
-        merged_data = pd.merge(
-            air_quality_data, weather_data, left_on="Year", right_on=weather_data["Date_Time"].dt.year, how="inner"
-        )
-        if not merged_data.empty:
-            correlation_matrix = merged_data[selected_corr_columns].corr()
-            fig, ax = plt.subplots(figsize=(8, 6))
-            sns.heatmap(correlation_matrix, annot=True, cmap="coolwarm", ax=ax)
-            ax.set_title("Correlation Heatmap")
-            st.pyplot(fig)
-        else:
-            st.warning("No matching data for correlation analysis.")
-
-    # Pollutant Distribution
-    with tabs[3]:
-        st.header("Pollutant Distribution Across States")
-        selected_pollutant = st.selectbox("Choose Pollutant", ["PM2.5", "PM10", "NO2", "Ozone"], index=0)
-        if selected_pollutant in air_quality_data.columns:
-            fig, ax = plt.subplots(figsize=(10, 6))
-            sns.boxplot(
-                data=air_quality_data,
-                x="State",
-                y=selected_pollutant,
-                ax=ax
-            )
-            ax.set_title(f"{selected_pollutant} Levels by State")
-            plt.xticks(rotation=45)
-            st.pyplot(fig)
-
-    # Seasonal Trends
-    with tabs[4]:
-        st.header("Seasonal Trends in Air Quality")
-        city_for_trend = st.selectbox("Choose City for Seasonal Trends", weather_data["Location"].unique())
-        filtered_data = weather_data[weather_data["Location"] == city_for_trend]
-        if not filtered_data.empty:
-            filtered_data["Month"] = filtered_data["Date_Time"].dt.month
-            monthly_avg_temp = filtered_data.groupby("Month")["Temperature_C"].mean()
-            fig, ax = plt.subplots()
-            monthly_avg_temp.plot(kind="bar", ax=ax)
-            ax.set_title(f"Monthly Average Temperature in {city_for_trend}")
-            ax.set_xlabel("Month")
-            ax.set_ylabel("Temperature (°C)")
-            st.pyplot(fig)
-
-    # Insights & Recommendations
-    with tabs[5]:
-        st.header("Insights and Recommendations")
-        st.markdown(
-            """
-            - **High Pollution States:** Focus on states with consistently high pollution levels.
-            - **Seasonal Planning:** Use seasonal patterns to predict and mitigate pollution spikes.
-            - **Weather Impact:** Leverage wind speed and temperature correlations for policy planning.
-            """
-        )
+if selected_state != "All":
+    counties = sorted(aqi_df[aqi_df['State'] == selected_state]['County'].dropna().unique())
 else:
-    st.warning("Please select air quality and weather datasets to proceed.")
+    counties = sorted(aqi_df['County'].dropna().unique())
+selected_county = st.sidebar.selectbox("Select a County:", options=["All"]+list(counties))
+
+years = sorted(aqi_df['Year'].dropna().unique())
+selected_years = st.sidebar.multiselect("Select Year(s):", options=years, default=years)
+
+locations = sorted(weather_df['Location'].dropna().unique())
+selected_location = st.sidebar.selectbox("Select Weather Location:", options=["All"]+locations)
+
+############################
+# Data Filtering
+############################
+filtered_aqi = aqi_df.copy()
+if selected_state != "All":
+    filtered_aqi = filtered_aqi[filtered_aqi['State'] == selected_state]
+if selected_county != "All":
+    filtered_aqi = filtered_aqi[filtered_aqi['County'] == selected_county]
+if selected_years:
+    filtered_aqi = filtered_aqi[filtered_aqi['Year'].isin(selected_years)]
+
+filtered_weather = weather_df.copy()
+if selected_location != "All":
+    filtered_weather = filtered_weather[filtered_weather['Location'] == selected_location]
+if selected_years:
+    filtered_weather = filtered_weather[filtered_weather['Year'].isin(selected_years)]
+
+############################
+# Summary Statistics
+############################
+st.subheader("Summary Statistics for Filtered Data")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    st.markdown("**AQI Data Summary**")
+    if filtered_aqi.empty:
+        st.write("No AQI data available for the selected filters.")
+    else:
+        avg_median_aqi = filtered_aqi['Median AQI'].mean()
+        avg_good_days = filtered_aqi['Good Days'].mean()
+        avg_unhealthy_days = filtered_aqi['Unhealthy Days'].mean()
+        
+        st.write(f"**Average Median AQI:** {avg_median_aqi:.2f}")
+        st.write(f"**Average Good Days:** {avg_good_days:.2f}")
+        st.write(f"**Average Unhealthy Days:** {avg_unhealthy_days:.2f}")
+
+        # Show top and bottom counties by Median AQI if multiple counties are present
+        if (selected_county == "All") and not filtered_aqi.empty:
+            county_median = filtered_aqi.groupby('County')['Median AQI'].mean().reset_index()
+            top_county = county_median.sort_values('Median AQI', ascending=True).head(1)
+            worst_county = county_median.sort_values('Median AQI', ascending=False).head(1)
+            st.write(f"**Lowest Median AQI County:** {top_county['County'].values[0]} ({top_county['Median AQI'].values[0]:.2f})")
+            st.write(f"**Highest Median AQI County:** {worst_county['County'].values[0]} ({worst_county['Median AQI'].values[0]:.2f})")
+
+with col2:
+    st.markdown("**Weather Data Summary**")
+    if filtered_weather.empty:
+        st.write("No Weather data available for the selected filters.")
+    else:
+        avg_temp = filtered_weather['Temperature_C'].mean()
+        avg_humidity = filtered_weather['Humidity_pct'].mean()
+        avg_precip = filtered_weather['Precipitation_mm'].mean()
+        avg_wind = filtered_weather['Wind_Speed_kmh'].mean()
+        
+        st.write(f"**Average Temperature (°C):** {avg_temp:.2f}")
+        st.write(f"**Average Humidity (%):** {avg_humidity:.2f}")
+        st.write(f"**Average Precipitation (mm):** {avg_precip:.2f}")
+        st.write(f"**Average Wind Speed (km/h):** {avg_wind:.2f}")
+
+############################
+# Visualizations
+############################
+st.subheader("Visualizations")
+
+# Choose chart type for AQI distribution
+chart_type = st.radio("Select Chart Type for AQI Category Distribution:", ["Stacked Bar Chart", "Line Chart"])
+
+if not filtered_aqi.empty:
+    # Aggregation to show AQI days by year
+    aqi_agg_year = filtered_aqi.groupby('Year', as_index=False)[
+        ['Good Days','Moderate Days','Unhealthy for Sensitive Groups Days','Unhealthy Days','Very Unhealthy Days','Hazardous Days']
+    ].mean(numeric_only=True)
+
+    if chart_type == "Stacked Bar Chart":
+        fig_aqi = px.bar(
+            aqi_agg_year,
+            x='Year',
+            y=['Good Days','Moderate Days','Unhealthy for Sensitive Groups Days','Unhealthy Days','Very Unhealthy Days','Hazardous Days'],
+            title="AQI Category Distribution by Year (Averaged if multiple counties)",
+            barmode='stack'
+        )
+    else:
+        # Line chart - plotting just Median AQI over years
+        aqi_med_agg = filtered_aqi.groupby('Year', as_index=False)['Median AQI'].mean()
+        fig_aqi = px.line(
+            aqi_med_agg, x='Year', y='Median AQI',
+            title="Average Median AQI Over Selected Years"
+        )
+    st.plotly_chart(fig_aqi, use_container_width=True)
+else:
+    st.write("No AQI Data to display for the selected filters.")
+
+# Weather time-series
+if not filtered_weather.empty:
+    fig_weather = px.line(
+        filtered_weather.sort_values(by='Date_Time'),
+        x='Date_Time',
+        y='Temperature_C',
+        title=f"Temperature Over Time ({selected_location if selected_location!='All' else 'All Locations'})"
+    )
+    st.plotly_chart(fig_weather, use_container_width=True)
+else:
+    st.write("No Weather Data to display for the selected filters.")
+
+# Scatter plot for correlation between Median AQI and Temperature by Year
+if not filtered_aqi.empty and not filtered_weather.empty:
+    # Aggregate both by Year
+    weather_agg = filtered_weather.groupby('Year', as_index=False).mean(numeric_only=True)
+    aqi_agg = filtered_aqi.groupby('Year', as_index=False).mean(numeric_only=True)
+    
+    merged = pd.merge(aqi_agg, weather_agg, on='Year', suffixes=('_aqi','_weather'), how='inner')
+    if not merged.empty:
+        fig_scatter = px.scatter(
+            merged,
+            x='Median AQI',
+            y='Temperature_C',
+            color='Year',
+            title='Correlation between Median AQI and Temperature (by Year)'
+        )
+        st.plotly_chart(fig_scatter, use_container_width=True)
+    else:
+        st.write("No overlapping year data for correlation visualization.")
+
+############################
+# Correlation Matrix
+############################
+st.subheader("Correlation Analysis")
+
+# We can create a correlation matrix for aggregated AQI and Weather metrics by year.
+# We'll aggregate AQI and Weather by year and, if applicable, by selected filters, 
+# then join them and compute correlation.
+
+if (not filtered_aqi.empty) and (not filtered_weather.empty):
+    aqi_metrics = ['Days with AQI','Good Days','Moderate Days','Unhealthy for Sensitive Groups Days',
+                   'Unhealthy Days','Very Unhealthy Days','Hazardous Days','Max AQI','90th Percentile AQI','Median AQI']
+    weather_metrics = ['Temperature_C','Humidity_pct','Precipitation_mm','Wind_Speed_kmh']
+
+    aqi_agg_corr = filtered_aqi.groupby('Year', as_index=False)[aqi_metrics].mean(numeric_only=True)
+    weather_agg_corr = filtered_weather.groupby('Year', as_index=False)[weather_metrics].mean(numeric_only=True)
+    corr_data = pd.merge(aqi_agg_corr, weather_agg_corr, on='Year', how='inner')
+
+    if corr_data.shape[0] > 1:
+        # Compute correlation matrix
+        corr_mat = corr_data[aqi_metrics + weather_metrics].corr()
+
+        fig, ax = plt.subplots(figsize=(10,8))
+        sns.heatmap(corr_mat, annot=True, cmap='coolwarm', fmt=".2f", ax=ax)
+        ax.set_title("Correlation Matrix of AQI and Weather Metrics (Annual Aggregation)")
+        st.pyplot(fig)
+    else:
+        st.write("Not enough overlapping data across years to compute a correlation matrix.")
+else:
+    st.write("Need both AQI and Weather data for correlation matrix.")
+
+############################
+# Data Tables
+############################
+st.subheader("Filtered Data Tables")
+
+expander_aqi = st.expander("View Filtered AQI Data", expanded=False)
+with expander_aqi:
+    if filtered_aqi.empty:
+        st.write("No AQI data available.")
+    else:
+        st.dataframe(filtered_aqi)
+
+expander_weather = st.expander("View Filtered Weather Data", expanded=False)
+with expander_weather:
+    if filtered_weather.empty:
+        st.write("No Weather data available.")
+    else:
+        st.dataframe(filtered_weather)
+
+############################
+# Download Buttons
+############################
+st.subheader("Download Filtered Data")
+
+col3, col4 = st.columns(2)
+
+with col3:
+    if not filtered_aqi.empty:
+        csv_aqi = filtered_aqi.to_csv(index=False)
+        st.download_button("Download Filtered AQI Data as CSV", data=csv_aqi, file_name="filtered_aqi.csv", mime="text/csv")
+
+with col4:
+    if not filtered_weather.empty:
+        csv_weather = filtered_weather.to_csv(index=False)
+        st.download_button("Download Filtered Weather Data as CSV", data=csv_weather, file_name="filtered_weather.csv", mime="text/csv")
+
+############################
+# Footer
+############################
+st.markdown("---")
+st.markdown("**ENG220-Group-17** | [GitHub Repository](https://github.com/galazmi/ENG220-Group-17)")
