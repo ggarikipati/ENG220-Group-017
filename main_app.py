@@ -27,11 +27,11 @@ tab1, tab2 = st.tabs(["Data Exploration", "Data Reduction"])
 ############################
 # Helper Functions
 ############################
+
 def load_aqi_data():
     # Load and combine all AQI files
     aqi_files = glob.glob("datasets/annual_aqi_by_county_*.csv")
     aqi_data_list = []
-
     for file in aqi_files:
         df_temp = pd.read_csv(file)
         aqi_data_list.append(df_temp)
@@ -42,13 +42,45 @@ def load_aqi_data():
     return aqi_df
 
 def load_weather_data():
-    weather_df = pd.read_csv("datasets/weather_data.csv")
-    weather_df['Date_Time'] = pd.to_datetime(weather_df['Date_Time'], errors='coerce')
-    weather_df['Year'] = weather_df['Date_Time'].dt.year
-    return weather_df
+    # Robust loading of weather_data.csv with handling of empty lines and bad lines
+    try:
+        df = pd.read_csv(
+            "datasets/weather_data.csv",
+            sep=",",               # Adjust if not comma-separated
+            skip_blank_lines=True, 
+            on_bad_lines='skip',   # Skip lines that cannot be parsed
+            dtype=str              # Initially read all as strings
+        )
+    except FileNotFoundError:
+        st.error("Error: The file 'weather_data.csv' was not found in the datasets folder.")
+        return pd.DataFrame()
+    except Exception as e:
+        st.error(f"An error occurred while reading 'weather_data.csv': {e}")
+        return pd.DataFrame()
+
+    # Drop rows that are completely empty
+    df = df.dropna(how='all')
+
+    # Expected columns
+    required_columns = ["Location", "Date_Time", "Temperature_C", "Humidity_pct", "Precipitation_mm", "Wind_Speed_kmh"]
+    missing_cols = [col for col in required_columns if col not in df.columns]
+    if missing_cols:
+        st.warning(f"Warning: The following expected columns are missing from weather_data.csv: {missing_cols}")
+        st.write("Available columns:", df.columns.tolist())
+
+    # Parse Date_Time into datetime
+    if "Date_Time" in df.columns:
+        df["Date_Time"] = pd.to_datetime(df["Date_Time"], errors='coerce')
+
+    # Convert numeric columns
+    numeric_cols = ["Temperature_C", "Humidity_pct", "Precipitation_mm", "Wind_Speed_kmh"]
+    for col in numeric_cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+
+    return df
 
 def display_correlation_matrix(aqi_df, weather_df):
-    # Compute correlation matrix from aggregated annual data
     aqi_metrics = ['Days with AQI','Good Days','Moderate Days','Unhealthy for Sensitive Groups Days',
                    'Unhealthy Days','Very Unhealthy Days','Hazardous Days','Max AQI','90th Percentile AQI','Median AQI']
     weather_metrics = ['Temperature_C','Humidity_pct','Precipitation_mm','Wind_Speed_kmh']
@@ -56,7 +88,7 @@ def display_correlation_matrix(aqi_df, weather_df):
     aqi_agg_corr = aqi_df.groupby('Year', as_index=False)[aqi_metrics].mean(numeric_only=True)
     weather_agg_corr = weather_df.groupby('Year', as_index=False)[weather_metrics].mean(numeric_only=True)
     corr_data = pd.merge(aqi_agg_corr, weather_agg_corr, on='Year', how='inner')
-    
+
     if corr_data.shape[0] > 1:
         corr_mat = corr_data[aqi_metrics + weather_metrics].corr()
         fig, ax = plt.subplots(figsize=(10,8))
@@ -64,7 +96,7 @@ def display_correlation_matrix(aqi_df, weather_df):
         ax.set_title("Correlation Matrix of AQI and Weather Metrics (Annual Aggregation)")
         st.pyplot(fig)
     else:
-        st.write("Not enough overlapping year data across AQI and Weather to compute a correlation matrix.")
+        st.write("Not enough overlapping year data to compute a correlation matrix.")
 
 ############################
 # Tab 1: Data Exploration
@@ -72,15 +104,11 @@ def display_correlation_matrix(aqi_df, weather_df):
 with tab1:
     st.subheader("Data Exploration")
 
-    ############################
     # Load Data
-    ############################
     aqi_df = load_aqi_data()
     weather_df = load_weather_data()
 
-    ############################
     # Sidebar Filters
-    ############################
     st.sidebar.header("Filters")
 
     states = sorted(aqi_df['State'].dropna().unique())
@@ -95,12 +123,13 @@ with tab1:
     years = sorted(aqi_df['Year'].dropna().unique())
     selected_years = st.sidebar.multiselect("Select Year(s):", options=years, default=years)
 
-    locations = sorted(weather_df['Location'].dropna().unique())
-    selected_location = st.sidebar.selectbox("Select Weather Location:", options=["All"]+locations)
+    if 'Location' in weather_df.columns:
+        locations = sorted(weather_df['Location'].dropna().unique())
+    else:
+        locations = []
+    selected_location = st.sidebar.selectbox("Select Weather Location:", options=["All"]+locations if locations else ["All"])
 
-    ############################
     # Data Filtering
-    ############################
     filtered_aqi = aqi_df.copy()
     if selected_state != "All":
         filtered_aqi = filtered_aqi[filtered_aqi['State'] == selected_state]
@@ -110,16 +139,13 @@ with tab1:
         filtered_aqi = filtered_aqi[filtered_aqi['Year'].isin(selected_years)]
 
     filtered_weather = weather_df.copy()
-    if selected_location != "All":
+    if selected_location != "All" and 'Location' in filtered_weather.columns:
         filtered_weather = filtered_weather[filtered_weather['Location'] == selected_location]
-    if selected_years:
+    if selected_years and 'Year' in filtered_weather.columns:
         filtered_weather = filtered_weather[filtered_weather['Year'].isin(selected_years)]
 
-    ############################
     # Summary Statistics
-    ############################
     st.subheader("Summary Statistics for Filtered Data")
-
     col1, col2 = st.columns(2)
 
     with col1:
@@ -130,7 +156,7 @@ with tab1:
             avg_median_aqi = filtered_aqi['Median AQI'].mean()
             avg_good_days = filtered_aqi['Good Days'].mean()
             avg_unhealthy_days = filtered_aqi['Unhealthy Days'].mean()
-            
+
             st.write(f"**Average Median AQI:** {avg_median_aqi:.2f}")
             st.write(f"**Average Good Days:** {avg_good_days:.2f}")
             st.write(f"**Average Unhealthy Days:** {avg_unhealthy_days:.2f}")
@@ -149,23 +175,33 @@ with tab1:
         if filtered_weather.empty:
             st.write("No Weather data available for the selected filters.")
         else:
-            avg_temp = filtered_weather['Temperature_C'].mean()
-            avg_humidity = filtered_weather['Humidity_pct'].mean()
-            avg_precip = filtered_weather['Precipitation_mm'].mean()
-            avg_wind = filtered_weather['Wind_Speed_kmh'].mean()
-            
-            st.write(f"**Average Temperature (°C):** {avg_temp:.2f}")
-            st.write(f"**Average Humidity (%):** {avg_humidity:.2f}")
-            st.write(f"**Average Precipitation (mm):** {avg_precip:.2f}")
-            st.write(f"**Average Wind Speed (km/h):** {avg_wind:.2f}")
+            if 'Temperature_C' in filtered_weather.columns:
+                avg_temp = filtered_weather['Temperature_C'].mean()
+            else:
+                avg_temp = np.nan
+            if 'Humidity_pct' in filtered_weather.columns:
+                avg_humidity = filtered_weather['Humidity_pct'].mean()
+            else:
+                avg_humidity = np.nan
+            if 'Precipitation_mm' in filtered_weather.columns:
+                avg_precip = filtered_weather['Precipitation_mm'].mean()
+            else:
+                avg_precip = np.nan
+            if 'Wind_Speed_kmh' in filtered_weather.columns:
+                avg_wind = filtered_weather['Wind_Speed_kmh'].mean()
+            else:
+                avg_wind = np.nan
 
-    ############################
+            st.write(f"**Average Temperature (°C):** {avg_temp:.2f}" if not np.isnan(avg_temp) else "No Temperature Data")
+            st.write(f"**Average Humidity (%):** {avg_humidity:.2f}" if not np.isnan(avg_humidity) else "No Humidity Data")
+            st.write(f"**Average Precipitation (mm):** {avg_precip:.2f}" if not np.isnan(avg_precip) else "No Precipitation Data")
+            st.write(f"**Average Wind Speed (km/h):** {avg_wind:.2f}" if not np.isnan(avg_wind) else "No Wind Data")
+
     # Visualizations
-    ############################
     st.subheader("Visualizations")
 
+    # AQI category distribution bar chart
     if not filtered_aqi.empty:
-        # AQI category distribution bar chart
         aqi_agg_year = filtered_aqi.groupby('Year', as_index=False)[
             ['Good Days','Moderate Days','Unhealthy for Sensitive Groups Days','Unhealthy Days','Very Unhealthy Days','Hazardous Days']
         ].mean(numeric_only=True)
@@ -186,8 +222,7 @@ with tab1:
     else:
         st.write("No AQI Data to display for these filters.")
 
-    if not filtered_weather.empty:
-        # Temperature over time line chart
+    if not filtered_weather.empty and 'Date_Time' in filtered_weather.columns and 'Temperature_C' in filtered_weather.columns:
         fig_weather = px.line(
             filtered_weather.sort_values(by='Date_Time'),
             x='Date_Time',
@@ -196,24 +231,29 @@ with tab1:
         )
         st.plotly_chart(fig_weather, use_container_width=True)
     else:
-        st.write("No Weather Data to display for these filters.")
+        st.write("No Temperature time-series to display for these filters.")
 
     # Scatter between Median AQI and Temperature by Year
-    if not filtered_aqi.empty and not filtered_weather.empty:
-        weather_agg = filtered_weather.groupby('Year', as_index=False).mean(numeric_only=True)
-        aqi_agg = filtered_aqi.groupby('Year', as_index=False).mean(numeric_only=True)
-        merged = pd.merge(aqi_agg, weather_agg, on='Year', suffixes=('_aqi','_weather'), how='inner')
-        if not merged.empty:
-            fig_scatter = px.scatter(
-                merged,
-                x='Median AQI',
-                y='Temperature_C',
-                color='Year',
-                title='Correlation between Median AQI and Temperature (by Year)'
-            )
-            st.plotly_chart(fig_scatter, use_container_width=True)
+    if not filtered_aqi.empty and not filtered_weather.empty and 'Temperature_C' in filtered_weather.columns:
+        if 'Year' in filtered_weather.columns:
+            weather_agg = filtered_weather.groupby('Year', as_index=False).mean(numeric_only=True)
+            aqi_agg = filtered_aqi.groupby('Year', as_index=False).mean(numeric_only=True)
+            merged = pd.merge(aqi_agg, weather_agg, on='Year', suffixes=('_aqi','_weather'), how='inner')
+            if not merged.empty and 'Median AQI' in merged.columns and 'Temperature_C' in merged.columns:
+                fig_scatter = px.scatter(
+                    merged,
+                    x='Median AQI',
+                    y='Temperature_C',
+                    color='Year',
+                    title='Correlation between Median AQI and Temperature (by Year)'
+                )
+                st.plotly_chart(fig_scatter, use_container_width=True)
+            else:
+                st.write("No overlapping year data for correlation visualization.")
         else:
-            st.write("No overlapping year data for correlation visualization.")
+            st.write("No 'Year' column in Weather data to compare AQI and Temperature by year.")
+    else:
+        st.write("Not enough data to show correlation plot.")
 
     # Correlation matrix
     st.subheader("Correlation Analysis")
@@ -222,9 +262,7 @@ with tab1:
     else:
         st.write("Need both AQI and Weather data for correlation matrix.")
 
-    ############################
     # Data Tables & Download
-    ############################
     st.subheader("Filtered Data Tables")
 
     expander_aqi = st.expander("View Filtered AQI Data", expanded=False)
@@ -268,7 +306,21 @@ with tab2:
     uploaded_file = st.file_uploader("Upload your large weather_data.csv file:", type=["csv"])
 
     if uploaded_file is not None:
-        df_original = pd.read_csv(uploaded_file)
+        df_original = pd.read_csv(
+            uploaded_file,
+            sep=",",
+            skip_blank_lines=True,
+            on_bad_lines='skip',
+            dtype=str
+        )
+        df_original = df_original.dropna(how='all')
+
+        # Attempt type conversions
+        if "Date_Time" in df_original.columns:
+            df_original["Date_Time"] = pd.to_datetime(df_original["Date_Time"], errors='coerce')
+        for c in ["Temperature_C", "Humidity_pct", "Precipitation_mm", "Wind_Speed_kmh"]:
+            if c in df_original.columns:
+                df_original[c] = pd.to_numeric(df_original[c], errors='coerce')
 
         st.write(f"**Original dataset dimensions:** {df_original.shape[0]} rows, {df_original.shape[1]} columns")
 
@@ -281,7 +333,6 @@ with tab2:
         if st.button("Reduce Dataset"):
             # Drop columns if selected
             if columns_to_drop:
-                # Drop only existing columns
                 existing_cols = [c for c in columns_to_drop if c in df_original.columns]
                 df_original.drop(columns=existing_cols, inplace=True)
                 st.write(f"Dropped columns: {existing_cols}")
@@ -290,7 +341,7 @@ with tab2:
             df_reduced = df_original.sample(frac=frac, random_state=random_state)
             st.write(f"**Reduced dataset dimensions:** {df_reduced.shape[0]} rows, {df_reduced.shape[1]} columns")
 
-            # Calculate size in memory (approx)
+            # Calculate approximate memory usage
             original_memory = df_original.memory_usage(deep=True).sum()/(1024*1024)
             reduced_memory = df_reduced.memory_usage(deep=True).sum()/(1024*1024)
             st.write(f"Approx. Original Memory Usage: {original_memory:.2f} MB")
@@ -304,7 +355,6 @@ with tab2:
             # Allow download of reduced dataset
             reduced_csv = df_reduced.to_csv(index=False)
             st.download_button("Download Reduced weather_data.csv", data=reduced_csv, file_name="weather_data_reduced.csv", mime="text/csv")
-
     else:
         st.info("Please upload a large weather_data.csv file to proceed with reduction.")
 
