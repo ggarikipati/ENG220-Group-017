@@ -6,6 +6,7 @@
 - Abdullah Alazmi
 - **Ghazi Alazmi (Group Leader)**
 - Abdullah Alkhatlan
+- Nader Alazemi
 
 ## Project Overview
 
@@ -71,6 +72,7 @@ This project provides an integrated dashboard that merges Air Quality Index (AQI
 - Abdullah Alazmi  
 - Ghazi Alazmi (Group Leader)  
 - Abdullah Alkhatlan
+- Nader Alazemi
 
 For questions or feedback, please reach out to any team member.
 
