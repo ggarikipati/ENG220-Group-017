@@ -6,20 +6,22 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import os
 
-st.set_page_config(page_title="Group-017 | AQI & Weather", layout="wide")
-st.title("Group-017: Air Quality & Weather Dashboard")
+
+st.title("Group-017")
 
 st.markdown("""
-This project explores the relationship between **Air Quality Index (AQI)** and **Weather Patterns** across the United States, with a focus on New Mexico.  
-It provides multiple views to analyze AQI data by state, county, and year, and correlates it with weather parameters like temperature, humidity, and wind speed.  
-The dashboard enables insights into how environmental conditions vary by region and over time, including a data reduction tool for handling large weather datasets.
+This project explores the relationship between **Air Quality Index (AQI)** and **Weather Patterns** across the United States, especially New Mexico.
+
+It provides multiple views to analyze AQI data by state, county, and year, and correlates it with weather parameters like temperature, humidity, and wind speed.
+
+It also features a data reduction tool for handling large weather datasets interactively.
 """)
 
 # ========== Utility ==========
 def load_csv(filename):
     try:
-        data_dir = os.path.dirname(__file__)
-        filepath = os.path.join(data_dir, "datasets", filename)
+        current_dir = os.path.dirname(__file__)
+        filepath = os.path.join(current_dir, "datasets", filename)
         return pd.read_csv(filepath)
     except Exception as e:
         st.warning(f"⚠️ Could not load {filename}: {e}")
@@ -32,7 +34,8 @@ tab1, tab2, tab3, tab4 = st.tabs(["AQI Data", "Weather Data", "Combined Analysis
 with tab1:
     st.subheader("Explore AQI Data")
 
-    dataset_dir = os.path.join(os.path.dirname(__file__), "datasets")
+    current_dir = os.path.dirname(__file__)
+    dataset_dir = os.path.join(current_dir, "datasets")
     aqi_files = [f for f in os.listdir(dataset_dir) if f.startswith("annual_aqi_by_county_")]
     aqi_df = pd.concat([load_csv(f) for f in aqi_files], ignore_index=True) if aqi_files else pd.DataFrame()
 
@@ -60,7 +63,6 @@ with tab1:
 
         st.dataframe(filtered)
 
-        st.markdown("#### AQI Visualization")
         if "Median AQI" in filtered.columns and filtered["Median AQI"].dropna().shape[0] > 0:
             try:
                 fig = px.line(
