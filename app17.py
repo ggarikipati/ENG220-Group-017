@@ -47,7 +47,8 @@ with tab1:
         with col2:
             county = st.selectbox("Select County", ["All"] + sorted(aqi_df["County"].dropna().unique()))
         with col3:
-            years = st.multiselect("Select Year(s)", sorted(aqi_df["Year"].unique()), default=sorted(aqi_df["Year"].unique()))
+            valid_years = sorted(aqi_df["Year"].dropna().unique().tolist())
+            years = st.multiselect("Select Year(s)", valid_years, default=valid_years)
 
         filtered = aqi_df.copy()
         if state != "All":
@@ -93,7 +94,8 @@ with tab2:
             with col1:
                 location = st.selectbox("Select Location", ["All"] + sorted(weather_df["Location"].dropna().unique()))
             with col2:
-                w_years = st.multiselect("Select Year(s)", sorted(weather_df["Year"].dropna().unique()), default=sorted(weather_df["Year"].dropna().unique()))
+                valid_w_years = sorted(weather_df["Year"].dropna().unique().tolist())
+                w_years = st.multiselect("Select Year(s)", valid_w_years, default=valid_w_years)
 
             filtered = weather_df.copy()
             if location != "All":
