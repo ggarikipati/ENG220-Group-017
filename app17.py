@@ -29,7 +29,8 @@ with tab1:
     st.subheader("Explore AQI Data")
 
     try:
-        aqi_files = [f for f in os.listdir(os.path.join(os.path.dirname(__file__), "datasets")) if f.startswith("annual_aqi_by_county_")]
+        dataset_dir = os.path.join(os.path.dirname(__file__), "datasets")
+        aqi_files = [f for f in os.listdir(dataset_dir) if f.startswith("annual_aqi_by_county_")]
         aqi_df = pd.concat([load_csv(f) for f in aqi_files], ignore_index=True)
     except Exception:
         st.error("AQI files not found. Ensure they are in the datasets folder.")
@@ -39,10 +40,14 @@ with tab1:
         aqi_df["Year"] = pd.to_numeric(aqi_df["Year"], errors="coerce")
         aqi_df.dropna(subset=["Year", "State", "County"], inplace=True)
 
-        st.write("#### Filter Options")
-        state = st.selectbox("Select State", ["All"] + sorted(aqi_df["State"].dropna().unique()))
-        county = st.selectbox("Select County", ["All"] + sorted(aqi_df["County"].dropna().unique()))
-        years = st.multiselect("Select Year(s)", sorted(aqi_df["Year"].unique()), default=sorted(aqi_df["Year"].unique()))
+        st.markdown("#### Filter Options")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            state = st.selectbox("Select State", ["All"] + sorted(aqi_df["State"].dropna().unique()))
+        with col2:
+            county = st.selectbox("Select County", ["All"] + sorted(aqi_df["County"].dropna().unique()))
+        with col3:
+            years = st.multiselect("Select Year(s)", sorted(aqi_df["Year"].unique()), default=sorted(aqi_df["Year"].unique()))
 
         filtered = aqi_df.copy()
         if state != "All":
@@ -55,7 +60,7 @@ with tab1:
         st.dataframe(filtered)
 
         if not filtered.empty:
-            st.write("#### AQI Visualization")
+            st.markdown("#### AQI Visualization")
             if "Median AQI" in filtered.columns:
                 fig = px.line(filtered, x="Year", y="Median AQI", color="County", title="Median AQI Over Years")
                 st.plotly_chart(fig, use_container_width=True)
@@ -77,9 +82,12 @@ with tab2:
             if col in weather_df.columns:
                 weather_df[col] = pd.to_numeric(weather_df[col], errors="coerce")
 
-        st.write("#### Filter Options")
-        location = st.selectbox("Select Location", ["All"] + sorted(weather_df["Location"].dropna().unique()))
-        w_years = st.multiselect("Select Year(s)", sorted(weather_df["Year"].unique()), default=sorted(weather_df["Year"].unique()))
+        st.markdown("#### Filter Options")
+        col1, col2 = st.columns(2)
+        with col1:
+            location = st.selectbox("Select Location", ["All"] + sorted(weather_df["Location"].dropna().unique()))
+        with col2:
+            w_years = st.multiselect("Select Year(s)", sorted(weather_df["Year"].unique()), default=sorted(weather_df["Year"].unique()))
 
         filtered = weather_df.copy()
         if location != "All":
@@ -90,7 +98,7 @@ with tab2:
         st.dataframe(filtered)
 
         if not filtered.empty:
-            st.write("#### Temperature Over Time")
+            st.markdown("#### Temperature Over Time")
             fig = px.line(filtered.sort_values("Date_Time"), x="Date_Time", y="Temperature_C", title="Temperature Over Time")
             st.plotly_chart(fig, use_container_width=True)
 
@@ -104,7 +112,7 @@ with tab3:
         combined = pd.merge(aqi_avg, weather_avg, on="Year", suffixes=("_aqi", "_weather"))
 
         if not combined.empty:
-            st.write("#### Correlation Heatmap")
+            st.markdown("#### Correlation Heatmap")
             corr = combined.corr()
             fig, ax = plt.subplots(figsize=(10, 6))
             sns.heatmap(corr, annot=True, cmap="coolwarm", fmt=".2f", ax=ax)
