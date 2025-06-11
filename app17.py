@@ -61,9 +61,23 @@ with tab1:
 
         if not filtered.empty:
             st.markdown("#### AQI Visualization")
-            if "Median AQI" in filtered.columns:
-                fig = px.line(filtered, x="Year", y="Median AQI", color="County", title="Median AQI Over Years")
-                st.plotly_chart(fig, use_container_width=True)
+            try:
+                if "Median AQI" in filtered.columns and not filtered["Median AQI"].dropna().empty:
+                    if filtered["County"].nunique() > 0:
+                        fig = px.line(
+                            filtered,
+                            x="Year",
+                            y="Median AQI",
+                            color="County",
+                            title="Median AQI Over Years"
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.warning("County information is insufficient for plotting.")
+                else:
+                    st.warning("No valid 'Median AQI' data found for selected filters.")
+            except Exception as e:
+                st.error(f"Error generating AQI visualization: {e}")
 
 # ========== Tab 2: Weather Data ==========
 with tab2:
@@ -99,14 +113,19 @@ with tab2:
 
         if not filtered.empty:
             st.markdown("#### Temperature Over Time")
-            fig = px.line(filtered.sort_values("Date_Time"), x="Date_Time", y="Temperature_C", title="Temperature Over Time")
+            fig = px.line(
+                filtered.sort_values("Date_Time"),
+                x="Date_Time",
+                y="Temperature_C",
+                title="Temperature Over Time"
+            )
             st.plotly_chart(fig, use_container_width=True)
 
 # ========== Tab 3: Combined Analysis ==========
 with tab3:
     st.subheader("Correlation Analysis Between AQI and Weather")
 
-    if not aqi_df.empty and not weather_df.empty:
+    if 'aqi_df' in locals() and not aqi_df.empty and 'weather_df' in locals() and not weather_df.empty:
         aqi_avg = aqi_df.groupby("Year").mean(numeric_only=True).reset_index()
         weather_avg = weather_df.groupby("Year").mean(numeric_only=True).reset_index()
         combined = pd.merge(aqi_avg, weather_avg, on="Year", suffixes=("_aqi", "_weather"))
